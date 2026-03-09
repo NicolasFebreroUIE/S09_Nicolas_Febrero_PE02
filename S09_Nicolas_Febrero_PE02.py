@@ -15,3 +15,16 @@ import matplotlib.pyplot as plt
 # So i now decided to define the categories here so i can read the results better later.
 # 0 is bearish, 1 is bullish and 2 is neutral. 
 sentiments = {0: "Bearish (Down)", 1: "Bullish (Up)", 2: "Neutral"}
+
+# As always, firstly i load the data from the csv files given with pandas (as always)...
+train_data = pd.read_csv('sent_train.csv')
+valid_data = pd.read_csv('sent_valid.csv')
+print("Checking the first rows of my training data:") # I print the first rows just to check if everything is loaded correctly.
+print(train_data.head()) # This is like a simple EDA of wath we are using, i saw this in an online resouce so i will use it.
+
+# Now i extract the text and the label for the training process using .values to have them as np.
+train_texts = train_data['text'].astype(str).values
+train_labels = train_data['label'].values
+valid_texts = valid_data['text'].astype(str).values # I do the same for the validation data. 
+valid_labels = valid_data['label'].values
+
