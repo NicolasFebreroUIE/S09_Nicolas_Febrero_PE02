@@ -28,3 +28,18 @@ train_labels = train_data['label'].values
 valid_texts = valid_data['text'].astype(str).values # I do the same for the validation data. 
 valid_labels = valid_data['label'].values
 
+# So now i will set the basic parameters for the word representaton
+# I chose 10000 for the vocabulary size and 100 for the length, this is a general/theorical quantity, no tweets are that long
+#or with that amount of characters
+vocab_size = 10000
+max_length = 100
+embedding_dim = 64
+oov_token = "<OOV>" # This is the token for out of vocabulary words we saw it in class...
+
+# Then the tokenizer to transform the numbers to tokens
+tokenizer = Tokenizer(num_words=vocab_size, oov_token=oov_token)
+tokenizer.fit_on_texts(train_texts) # I fit the tokenizer on the training texts.
+
+# The text sentences will now be transformed into sequences of integers
+train_sequences = tokenizer.texts_to_sequences(train_texts)
+valid_sequences = tokenizer.texts_to_sequences(valid_texts)
