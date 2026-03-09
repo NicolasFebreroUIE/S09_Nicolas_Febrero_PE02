@@ -1,6 +1,6 @@
-# For this exercise i will use the same imports that we saw in the practice sessions before
-# The only differences is that i will add sequential, the Embedding, LSTM and Dense layers.
-# I also use matplotlib to see if the model learns properly as we saw in the tutorial.
+# For this exercise i will use the same imports that we saw in the practice sessions before, same as the ones in the las evaluated practice
+# The only differencies is taht i will add sequential, the Embedding, LSTM and Dense layers.
+# I also use re for some basic cleaning as i saw in an online tutorial.
 
 import pandas as pd
 import numpy as np
@@ -10,6 +10,8 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Embedding, LSTM, Dense, Dropout
 import matplotlib.pyplot as plt
+import re
+from sklearn.metrics import classification_report
 
 # I changed the way i was doing the other exercise as i Knew that it had no good results
 # So i now decided to define the categories here so i can read the results better later.
@@ -19,53 +21,56 @@ sentiments = {0: "Bearish (Down)", 1: "Bullish (Up)", 2: "Neutral"}
 # As always, firstly i load the data from the csv files given with pandas (as always)...
 train_data = pd.read_csv('sent_train.csv')
 valid_data = pd.read_csv('sent_valid.csv')
-print("Checking the first rows ") # I print the first rows just to check if everything is loaded correctly.
-print(train_data.head()) # This is like a simple EDA of wath we are using, i saw this in an online resouce so i will use it.
+print("Checking the first rows ")
+print(train_data.head()) 
+
+def basic_clean(text):
+    text = str(text).lower()
+    text = re.sub(r'http\S+', '', text) # I remove links
+    text = re.sub(r'\$\w+', '', text)   # I remove stock tickers like $AAPL
+    text = re.sub(r'[^a-zA-Z\s]', '', text) # I remove symbols and numbers
+    return text
 
 # Now i extract the text and the label for the training process using .values to have them as np.
-train_texts = train_data['text'].astype(str).values
+train_texts = [basic_clean(t) for t in train_data['text']]
 train_labels = train_data['label'].values
-valid_texts = valid_data['text'].astype(str).values # I do the same for the validation data. 
+valid_texts = [basic_clean(t) for t in valid_data['text']]
 valid_labels = valid_data['label'].values
 
 # So now i will set the basic parameters for the word representaton
-# I chose 10000 for the vocabulary size and 100 for the length, this is a general/theorical quantity, no tweets are that long
-#or with that amount of characters
-vocab_size = 10000
-max_length = 100
+vocab_size = 5000
+max_length = 50
 embedding_dim = 64
-oov_token = "<OOV>" # This is the token for out of vocabulary words we saw it in class...
+oov_token = "<OOV>" 
 
 # Then the tokenizer to transform the numbers to tokens
 tokenizer = Tokenizer(num_words=vocab_size, oov_token=oov_token)
-tokenizer.fit_on_texts(train_texts) # I fit the tokenizer on the training texts.
+tokenizer.fit_on_texts(train_texts) 
 
 # The text sentences will now be transformed into sequences of integers
 train_sequences = tokenizer.texts_to_sequences(train_texts)
 valid_sequences = tokenizer.texts_to_sequences(valid_texts)
 
-# As i said before the tweets have different lengths, so i add padding to make them all equall and by using the max_length i defined and put the zeros at the end (post).
-train_p = pad_sequences(train_sequences, maxlen=max_length, padding='post', truncating='post')
-valid_p = pad_sequences(valid_sequences, maxlen=max_length, padding='post', truncating='post')
+# I add padding to make them all equall. I use 'pre' because i read it is better for LSTM.
+train_p = pad_sequences(train_sequences, maxlen=max_length, padding='pre', truncating='pre')
+valid_p = pad_sequences(valid_sequences, maxlen=max_length, padding='pre', truncating='pre')
 train_l = np.array(train_labels)
 valid_l = np.array(valid_labels)
 
-# Once i have all prepare, i may now build the neural network using the Sequential model and for not making it me coplex i 
-# decided to add the layers one by one.
+# Build the neural network using the Sequential model.
 model = Sequential()
 
-# Embedding layer that handles the word representation.
-model.add(Embedding(vocab_size, embedding_dim, input_length=max_length))
-# The layer 2 i the LSTM layer where it manages the temporal nature of the text and captures the context.
-model.add(LSTM(64))
-model.add(Dropout(0.2)) # Just to avoid overfitting
-# Then theoutput layer for the 3 categories.
+# Embedding layer with masking to ignore the zeros.
+model.add(Embedding(vocab_size, embedding_dim, input_length=max_length, mask_zero=True))
+# The LSTM layer manages the temporal nature and captures the context.
+model.add(LSTM(128, dropout=0.2))
+model.add(Dense(64, activation='relu'))
 model.add(Dense(3, activation='softmax'))
+
 model.compile(loss='sparse_categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 model.summary()
 
-# JUst 5 epoch to train the model
-
+# Training process
 print("training process:")
 history = model.fit(
     train_p, 
@@ -75,6 +80,38 @@ history = model.fit(
     validation_data=(valid_p, valid_l)
 )
 
-# I want to see the final results of the training.
-print("the results")
-print("validation Accuracy:", history.history['val_accuracy'][-1])
+
+# Instead of doing it "by hand" with a few sentences, i use the whole validation set.
+print("FINAL EVALUATION ON VALIDATION SET:")
+# I predict the probabilities for all tweets in the validation set.
+predictions = model.predict(valid_p)
+# I take the category with the highest probability.
+predicted_classes = np.argmax(predictions, axis=1)
+
+# I use classification_report to see the performance in each category.
+report = classification_report(valid_l, predicted_classes, target_names=list(sentiments.values()))
+print(report)
+
+# I want to see the final accuracy result.
+loss, acc = model.evaluate(valid_p, valid_l, verbose=0)
+print(f"Final Validation Accuracy: {acc:.4f}")
+
+# Plotting the accuracy and loss evolution
+plt.figure(figsize=(10, 6))
+plt.subplot(1, 2, 1)
+plt.plot(history.history['accuracy'], label='Training')
+plt.plot(history.history['val_accuracy'], label='Validation')
+plt.title('Accuracy through Epochs')
+plt.legend()
+plt.subplot(1, 2, 2)
+plt.plot(history.history['loss'], label='Training')
+plt.plot(history.history['val_loss'], label='Validation')
+plt.title('Loss through Epochs')
+plt.legend()
+plt.tight_layout()
+plt.savefig('my_training_plots.png')
+print("Plots saved like in my_training_plots.png")
+
+# REMARKS: At first, the accurac level was at 0.65, i had to search i way to fixed it beacuse it will think all frases were neutral
+# Also i had to change the model i was trainign because i didnt use the tokenize function that owrked with the tweets symbols and charcaters.
+# This is my Github link if needed: 
